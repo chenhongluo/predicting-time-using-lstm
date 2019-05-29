@@ -27,7 +27,7 @@ class st2(st):
     def __init__(self,name):
         super(st2, self).__init__(name)
         self.s = {}
-        self.sub = st1()
+        self.sub = st1(name)
     def recode(self,v):
         if v not in self.s.keys():
             self.s[v] = 0
@@ -59,77 +59,92 @@ class st2(st):
 
 class data_deal(object):
     def __init__(self):
-        self.names = ["job number","wait time","run time","precessor number"," Average CPU Time Used",
+        self.names = ["job number","submit time","wait time","run time","precessor number"," Average CPU Time Used",
                       "memory","requested processor num",
                       "requested time","request memory",
                       "Status","User ID",
-                      "Group ID" ,"Executable (Application) Number","queue number"]
-        self.sts = [st2(self.names[i]) for i in range(15)]
+                      "Group ID" ,"Executable (Application) Number","queue number","part numbar","None","None"]
+        self.sts = [st2(self.names[i]) for i in range(18)]
         self.valid_count = 0
     def readline(self,line):
         if type(line) != list or len(line) != 18:
             print("error line")
-        for i in range(15):
+        for i in range(18):
             self.sts[i].recode(line[i])
-        self.valid_count += 1 if line[11] == 1 else 0
+        self.valid_count += (1 if line[10] == 1 else 0)
     def display(self):
-        for i in range(15):
+        for i in range(18):
             self.sts[i].display()
         print("ok jobs number:", self.valid_count)
     def mma(self):
-        return [self.sts[i].mma() for i in range(15)]
+        return [self.sts[i].mma() for i in range(18)]
 
 def cc(v,min,max):
     return (v-min)/(max-min)
 
 def data_convert():
-    filename = ""
-    p = 0.5
+    filename = "CTC-SP2-1996-3.1-cln.swf"
+    p = 1.0
     max_cpus = None
 
     dd = data_deal()
     lines = []
     lines_deal = []
     with open(filename,'r') as f:
-        line = f.readline()
-        line = line.split(' ')
-        line = [int(x) for x in line[0:-1]]
-        dd.readline(line)
-        lines.append(line)
+        while 1:
+            line = f.readline()
+            if line == "":
+                break
+            line=line[0:-1]
+            line = line.split(' ')
+            line = list(filter(lambda t:t!="",line))
+            line = [int(float(x)) for x in line]
+            dd.readline(line)
+            if line[10] == 1:
+            # if 1:
+                lines.append(line)
     submit_time = lines[0][1]
     infos = dd.mma()
     with open(filename + ".index", 'w') as f:
-        json.dump(infos)
+        json.dump(infos,f)
     with open(filename+".deal_original",'w') as f,open(filename+".train_%.1f"%(p),'w') as f_train,\
             open(filename+".test_%.1f"%(p),'w') as f_test:
-        print("infos count:%d,max cpu count:%d,max run time:%d,max request run time:%d"
+        print("infos count:%d,max cpu count:%d,max run time:%d,max request run time:%d "
               "user count:%d,group count:%d,app count:%d,infos per user:%.2f,,infos per group:%.2f,infos per job:%.2f"
-              %(dd.valid_count,infos[5][2],infos[3][2],infos[8][2],infos[11][4],infos[12][4],
-                infos[13][4],dd.valid_count/infos[11][4],dd.valid_count/infos[12][4],dd.valid_count/infos[12][4]))
+              %(dd.valid_count,infos[4][2],infos[3][2],infos[8][2],infos[11][4],infos[12][4],
+                infos[13][4],dd.valid_count/infos[11][4],dd.valid_count/infos[12][4],dd.valid_count/infos[13][4]))
         for l in lines:
-            tt = [cc(l[i],infos[i][1],infos[i][2]) for i in range(15)]
-            temp=[l[0],cc(l[1]-submit_time,0,infos[1][3]),
-                  l[2],tt[3],
-                  cc(l[4],0,max_cpus if max_cpus!=None else infos[4][2]),
-                  tt[5],tt[6],cc(l[7],0,max_cpus if max_cpus!=None else infos[7][2]),
-                  tt[8],tt[9],l[10],l[11],l[12],l[13],l[14],l[3]/l[8]]
+            tt = [cc(l[i],0,infos[i][2]) for i in range(18)]
+            temp = [l[0], l[1],
+                    l[2], l[3],
+                    cc(l[4], 0, max_cpus if max_cpus != None else infos[4][2]),
+                    tt[5], tt[6], cc(l[7], 0, max_cpus if max_cpus != None else infos[7][2]),
+                    tt[8], tt[9], l[10], l[11], l[12], l[13], l[14], l[15], l[16], l[17], l[3] / l[8]]
+            # temp=[l[0],cc(l[1]-submit_time,0,infos[1][3]),
+            #       l[2],tt[3],
+            #       cc(l[4],0,max_cpus if max_cpus!=None else infos[4][2]),
+            #       tt[5],tt[6],cc(l[7],0,max_cpus if max_cpus!=None else infos[7][2]),
+            #       tt[8],tt[9],l[10],l[11],l[12],l[13],l[14],l[15],l[16],l[17],l[3]/l[8]]
             lines_deal.append(temp)
-            submit_time = l[1]
-            f.write(temp)
-            f.write('\n')
+            # submit_time = l[1]
+            # f.write(temp)
+            # f.write('\n')
+        def write_data(data,f):
+            user_dict = {}
+            for line in data:
+                if line[11] not in user_dict.keys():
+                    user_dict[line[11]] = []
+                user_dict[line[11]].append(line)
+            def takeSecond(elem):
+                return elem[1]
+            for v in user_dict.values():
+                v.sort(key=takeSecond)
+            json.dump(user_dict,f)
 
-        user_dict = {}
-        size_train = len(lines_deal) * p
-        for line in lines_deal[0:size_train]:
-            if line[11] not in user_dict.keys():
-                user_dict[line[11]] = []
-            user_dict[line[11]].append(line)
-        def takeSecond(elem):
-            return elem[1]
-        for v in user_dict.values():
-            v.sort(key=takeSecond)
-        json.dump(user_dict,f_train)
+        size_train = int(len(lines_deal) * p)
+        train_data = lines_deal[0:size_train]
+        test_data = lines_deal[size_train:len(lines_deal)]
+        write_data(train_data,f_train)
+        write_data(test_data,f_test)
 
-        test_lines = lines_deal[size_train:len(lines_deal)]
-
-        json.dump(test_lines,f_test)
+data_convert()
