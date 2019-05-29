@@ -56,6 +56,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import numpy as np
 
 torch.manual_seed(1)
 
@@ -71,6 +72,7 @@ for i in inputs:
     # Step through the sequence one element at a time.
     # after each step, hidden contains the hidden state.
     out, hidden = lstm(i.view(1, 1, -1), hidden)
+    print(out,hidden)
 
 # alternatively, we can do the entire sequence all at once.
 # the first value returned by LSTM is all of the hidden states throughout
